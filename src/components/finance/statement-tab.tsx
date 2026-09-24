@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import { format, parseISO } from 'date-fns'
-import { Printer } from 'lucide-react'
+import { Check, Copy } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { buildStatement, type BalanceLine, type LiabilityLine, type StatementGroup } from '@/lib/statement'
+import { buildStatement, statementToCsv, type BalanceLine, type LiabilityLine, type StatementGroup } from '@/lib/statement'
 import type { Source, Transaction, RecurringItem, AccountBalance, Debt, Asset } from '@/types'
 
 interface Props {
@@ -31,7 +31,7 @@ const pct = (n: number) => `${Math.round(n * 100)}%`
 
 // Statement of income & liabilities: average monthly income and outgoings over
 // recent complete months, then what's owned and owed as of the latest balances.
-// Printable (the rest of the app is hidden via #statement print CSS).
+// Copy as CSV puts the whole statement on the clipboard for a spreadsheet.
 export function StatementTab({ sources, transactions, recurringItems, balances, debts, assets }: Props) {
   const [months, setMonths] = useState<number>(periodKey)
   const s = useMemo(
@@ -44,12 +44,23 @@ export function StatementTab({ sources, transactions, recurringItems, balances, 
     try { localStorage.setItem('lifeflow-statement-months', String(m)) } catch { /* private mode */ }
   }
 
+  const [copied, setCopied] = useState<'ok' | 'fail' | null>(null)
+  const copyCsv = async () => {
+    try {
+      await navigator.clipboard.writeText(statementToCsv(s))
+      setCopied('ok')
+    } catch {
+      setCopied('fail')
+    }
+    setTimeout(() => setCopied(null), 2000)
+  }
+
   const periodLabel = `${format(s.periodStart, 'MMM yyyy')} – ${format(s.periodEnd, 'MMM yyyy')}`
   const outgoings = s.totalCommitted + s.totalDiscretionary
 
   return (
-    <div id="statement" className="space-y-4">
-      <div className="flex items-center justify-between gap-2 flex-wrap print:hidden">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex rounded-lg border bg-muted/40 p-0.5">
           {PERIODS.map(m => (
             <button
@@ -63,12 +74,13 @@ export function StatementTab({ sources, transactions, recurringItems, balances, 
             </button>
           ))}
         </div>
-        <Button variant="outline" size="sm" onClick={() => window.print()}>
-          <Printer className="w-4 h-4 mr-1.5" /> Print / PDF
+        <Button variant="outline" size="sm" onClick={copyCsv}>
+          {copied === 'ok' ? <Check className="w-4 h-4 mr-1.5" /> : <Copy className="w-4 h-4 mr-1.5" />}
+          {copied === 'ok' ? 'Copied' : copied === 'fail' ? 'Copy failed' : 'Copy as CSV'}
         </Button>
       </div>
 
-      <Card className="py-5 gap-5 print:shadow-none print:border-0">
+      <Card className="py-5 gap-5">
         <CardContent className="px-4 sm:px-6 space-y-6">
           <div>
             <h2 className="text-lg font-semibold">Statement of income &amp; liabilities</h2>

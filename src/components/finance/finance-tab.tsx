@@ -40,7 +40,7 @@ export function FinanceTab(props: FinanceTabProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex rounded-lg border bg-muted/40 p-0.5 w-full sm:w-auto sm:inline-flex print:hidden">
+      <div className="flex rounded-lg border bg-muted/40 p-0.5 w-full sm:w-auto sm:inline-flex">
         {SUBTABS.map(t => (
           <button
             key={t.value}

@@ -229,3 +229,51 @@ export function buildStatement(
     debtService,
   }
 }
+
+// Flat CSV of the whole statement, one row per line item, for pasting into a
+// spreadsheet or a lender's form. Amounts are plain numbers (no £ or commas).
+export function statementToCsv(s: Statement): string {
+  const cell = (v: string | number | null | undefined) => {
+    if (v == null) return ''
+    if (typeof v === 'number') return v.toFixed(2)
+    return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v
+  }
+  const rows: Array<Array<string | number | null>> = [
+    ['Statement of income & liabilities'],
+    ['Prepared', format(new Date(), 'yyyy-MM-dd')],
+    ['Period', `${format(s.periodStart, 'MMM yyyy')} - ${format(s.periodEnd, 'MMM yyyy')}`, `${s.months} month average`],
+    [],
+    ['Section', 'Category', 'Item', 'Per month', 'Per year', 'Amount', 'Details'],
+  ]
+
+  const groups = (section: string, gs: StatementGroup[], total: number) => {
+    for (const g of gs) {
+      if (g.lines.length > 1) {
+        for (const l of g.lines) rows.push([section, g.category, l.label, l.monthly, l.monthly * 12, null, null])
+      } else {
+        rows.push([section, g.category, g.lines[0]?.label ?? '', g.monthly, g.monthly * 12, null, null])
+      }
+    }
+    rows.push([section, 'Total', '', total, total * 12, null, null])
+  }
+  groups('Income', s.income, s.totalIncome)
+  groups('Committed outgoings', s.committed, s.totalCommitted)
+  groups('Discretionary spending', s.discretionary, s.totalDiscretionary)
+  rows.push([s.surplus >= 0 ? 'Surplus' : 'Shortfall', '', '', s.surplus, s.surplus * 12, null, null])
+
+  const excluded = (l: BalanceLine) => (l.included ? null : 'excluded from net worth')
+  for (const l of s.assets) {
+    rows.push(['Assets', l.kind, l.label, null, null, l.amount,
+      [l.asOf && `as of ${l.asOf}`, excluded(l)].filter(Boolean).join('; ')])
+  }
+  rows.push(['Assets', 'Total', '', null, null, s.totalAssets, null])
+  for (const l of s.liabilities) {
+    rows.push(['Liabilities', l.kind, l.label, l.monthlyPayment, l.monthlyPayment != null ? l.monthlyPayment * 12 : null, l.amount,
+      [l.interestRate != null && `${l.interestRate}% APR`, l.payoff && `clear ${l.payoff}`, l.asOf && `as of ${l.asOf}`, excluded(l)]
+        .filter(Boolean).join('; ')])
+  }
+  rows.push(['Liabilities', 'Total', '', s.debtService, s.debtService * 12, s.totalLiabilities, 'per month = payments on linked debts'])
+  rows.push(['Net worth', '', '', null, null, s.netWorth, null])
+
+  return rows.map(r => r.map(cell).join(',')).join('\n') + '\n'
+}
