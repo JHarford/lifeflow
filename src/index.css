@@ -110,3 +110,9 @@
     }
   }
 }
+/* Printing the finance statement: show only #statement, drop the app chrome */
+@media print {
+  body * { visibility: hidden; }
+  #statement, #statement * { visibility: visible; }
+  #statement { position: absolute; inset: 0 auto auto 0; width: 100%; }
+}
